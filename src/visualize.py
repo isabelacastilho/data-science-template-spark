@@ -3,20 +3,27 @@ from import_data import import_csv_data
 import matplotlib.pyplot as plt
 
 
-def setup_seaborn():
-    sb.set(context="talk")
-    # sb.set_palette("BuGn_d")
-    # sb.set_palette("GnBu_d")
-    # sb.set_palette("Paired")
-    # sb.set_palette("PRGn")
-    # sb.set_palette("YlGnBu")
-    # sb.set_palette("Paired")
-    sb.set_palette("muted")
+def setup_seaborn(context="talk", palette="muted"):
+    """Example palettes:
+    BuGn_d, GnBu_d, Paired, PRGn, YlGnBu
+    Example contexts:
+    paper, notebook, talk, poster"""
+    sb.set(context=context)
+    sb.set_palette(palette)
 
 
 def plot_distribution(data, column, save_as = 'not to save'):
     """Plots a histogram and fits a KDE"""
     sb.distplot(data[column])
+
+    if save_as != 'not to save':
+        plt.savefig("../reports/figures/" + save_as + ".png")
+    sb.plt.show()
+
+
+def plot_categorical_count(data, column, save_as = 'not to save'):
+    """Plots a histogram of a categorical variable"""
+    sb.countplot(x=column, data=data)
 
     if save_as != 'not to save':
         plt.savefig("../reports/figures/" + save_as + ".png")
