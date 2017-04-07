@@ -90,6 +90,32 @@ def scale_data(data, numerical_columns=None):
     return data, scaler
 
 
+def encode_categorical_features(data, categorical_columns=None):
+    """ Using one hot encoder
+    A list of the column names of categorical features needs to be given
+    Otherwise it is assumed that all columns are categorical
+    """
+    if categorical_columns is None:
+        categorical_columns = list(data.columns.values)
+
+    label_encoders = []
+    categorical_data = data[categorical_columns]
+    for column in categorical_columns:
+        le = preprocessing.LabelEncoder()
+        le.fit(categorical_data[column])
+        categorical_data[column] = le.transform(categorical_data[column])
+        label_encoders.append(le)
+
+    transformed_column_names = [x + '_encoded' for x in categorical_columns]
+    encoder = preprocessing.OneHotEncoder()
+    encoder.fit(categorical_data)
+    test = encoder.transform(categorical_data)
+    # encoded_data = pd.DataFrame(encoder.transform(categorical_data))
+    # data = pd.merge(data, encoded_data, left_index=True, right_index=True)
+
+    return test
+
+
 def save_processed_data(data, filename):
     data.to_csv('../data/processed/'+filename+'.csv')
 
@@ -101,13 +127,21 @@ FEATURE GENERATION ----------------------------------------------------------
 if __name__ == '__main__':
     raw_data = import_csv_data('../data/raw/houses.csv')
     numerical_columns = ['price', 'sqm', 'years', 'bedrooms', 'bathrooms']
-    print raw_data.head()
+    categorical_columns = ['property_type', 'new_build', 'estate_type', 'town', 'district',
+                           'transaction_category', 'en_suite']
+    # print raw_data.head()
     # converted_data = replace_values(raw_data, 'town', 'LONDON', 'CARDIF')
     # unique_towns = check_for_similar_values(converted_data, 'town')
     # print unique_towns
     # print converted_data.head()
     # save_processed_data(raw_data, 'processed_houses')
     # print converted_data['town'].unique()
-    scaled, scaler = scale_data(raw_data, numerical_columns)
+    # scaled, scaler = scale_data(raw_data, numerical_columns)
+    # print '------SCALED DATA----------------------------------------------------'
+    # print scaled.head()
+
+    test = encode_categorical_features(raw_data, categorical_columns=categorical_columns)
     print '------SCALED DATA----------------------------------------------------'
-    print scaled.head()
+    print test
+
+
