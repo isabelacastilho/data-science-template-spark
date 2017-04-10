@@ -4,9 +4,7 @@ from pyspark.sql.functions import udf
 from pyspark.sql.types import StringType, ArrayType, DoubleType, IntegerType
 from itertools import combinations
 from difflib import SequenceMatcher
-from pyspark.mllib.feature import StandardScaler, StandardScalerModel
-from pyspark.ml.feature import VectorAssembler
-
+from pyspark.ml.feature import StandardScaler, VectorAssembler, StringIndexer, OneHotEncoder
 
 
 """
@@ -52,20 +50,12 @@ def find_unacceptable_values(data, column, criteria):
     return invalid_rows
 
 
-def scale_data(data, features_column, label_column):
+def scale_data(data, features_column):
     """ Scale numerical features with standard scaler
     """
-    label = data.map(lambda x: x[label_column])
-    features = data.map(lambda x: x[features_column])
-    scaler = StandardScaler(inputCol=features_column, outputCol=features_column+'_scaled')\
-        .fit(features)
-    scaled_data = label.zip(scaler.transform(features))
-
-    # numerical_data = data[numerical_columns]
-    # transformed_column_names = [x + '_scaled' for x in numerical_columns]
-    # scaler = preprocessing.StandardScaler().fit(numerical_data)
-    # scaled_data = pd.DataFrame(scaler.transform(numerical_data), columns=transformed_column_names)
-    # data = pd.merge(data, scaled_data, left_index=True, right_index=True)
+    scaler = StandardScaler(inputCol=features_column, outputCol="features_scaled")
+    model = scaler.fit(data)
+    scaled_data = model.transform(data)
 
     return scaled_data, scaler
 
@@ -88,13 +78,50 @@ def build_features(data, columns_to_ignore):
     return new_data
 
 
+def encode_categorical_features(data, categorical_columns=None, load_from_file=False):
+
+    if categorical_columns is None:
+        categorical_columns = data.columns
+
+    elif not isinstance(categorical_columns, list):
+        categorical_columns = [categorical_columns]
+
+    if load_from_file == False:
+        if isinstance(categorical_columns, list):
+            for column in categorical_columns:
+                string_indexer = StringIndexer(inputCol=column, outputCol=column + "_indexed")
+                model = string_indexer.fit(data)
+                indexed_data = model.transform(data)
+                encoder = OneHotEncoder(inputCol=column + "_indexed",
+                                        outputCol=column + "_encoded")
+                data = encoder.transform(indexed_data)
+
+                onehotEncoder_path = '../models/' + column + '_encoder.csv'
+                encoder.save(onehotEncoder_path)
+                indexer_path = '../models/' + column + '_indexer.csv'
+                model.save(indexer_path)
+    else:
+        if isinstance(categorical_columns, list):
+            for column in categorical_columns:
+                onehotEncoder_path = '../models/' + column + '_encoder.csv'
+                indexer_path = '../models/' + column + '_indexer.csv'
+
+                loaded_indexer = StringIndexer.load(indexer_path)
+                loaded_encoder = OneHotEncoder.load(onehotEncoder_path)
+
+                indexed_data = loaded_indexer.transform(data)
+                data = loaded_encoder.transform(indexed_data)
+
+    return data
+
+
 def save_processed_data(data, filename):
     data.write.csv('../data/processed/'+filename+'.csv')
 
 
 if __name__ == '__main__':
     raw_data = import_csv_data('../data/raw/houses.csv', header='file')
-    print raw_data.describe()
+    # print raw_data.describe()
 
     numerical_columns = ['price', 'sqm', 'years', 'bedrooms', 'bathrooms']
     categorical_columns = ['property_type', 'new_build', 'estate_type', 'town', 'district',
@@ -102,14 +129,19 @@ if __name__ == '__main__':
 
     # new_data = replace_values(raw_data, 'property_type', {'flat': 'FLAT', 'terraced': 'TERRACED'})
 
-    changed_type = change_column_type(raw_data, ['price', 'years'], IntegerType())
+    changed_type = change_column_type(raw_data, ['price', 'years', 'sqm', 'bedrooms', 'bathrooms'], DoubleType())
 
-    save_processed_data(changed_type, 'processed_houses')
+    # save_processed_data(changed_type, 'processed_houses')
 
-    new_data = build_features(changed_type, ['_c0', 'date', 'sqm', 'postcode', 'property_type',
-                                             'new_build', 'estate_type', 'number', 'street', 'town',
-                                             'district', 'transaction_category', 'Adress', 'index',
-                                             'bedrooms', 'bathrooms', 'en_suite'])
+    # new_data = build_features(changed_type, ['_c0', 'date', 'postcode', 'property_type',
+    #                                          'new_build', 'estate_type', 'number', 'street', 'town',
+    #                                          'district', 'transaction_category', 'Adress', 'index',
+    #                                          'en_suite', 'price'])
+
+    # scaled_data, scaler = scale_data(new_data, 'features')
+    # scaled_data.show()
+
+    new_data = encode_categorical_features(raw_data, 'property_type', load_from_file=True)
     new_data.show()
 
     # print check_for_similar_values(new_data, 'property_type')
